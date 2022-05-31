@@ -15,6 +15,7 @@ import time
 import subprocess
 import gc
 import platform
+import pandas as pd
 
 
 
@@ -84,11 +85,13 @@ class Worker(QThread):
             self.csvOutBaselineFilename       = self.planHeatDMM.data.outputSaveFile + ".csv"
             self.csvOutBaselineTotalFilename  = self.planHeatDMM.data.outputSaveFile + "_totalized.csv"
             self.csvOutBaselineHourlyFilename = self.planHeatDMM.data.outputSaveFile + "_hourly.csv"
+            self.csvOutBaselineCumulativeHourlyFilename = self.planheatDMM.data.outputSaveFile + '_cumulative.csv'
             #Future Demand
             self.shapeOutFutureFilename     = self.planHeatDMM.data.outputSaveFile + "_future"
             self.csvOutFutureFilename       = self.planHeatDMM.data.outputSaveFile + "_future.csv"
             self.csvOutFutureTotalFilename  = self.planHeatDMM.data.outputSaveFile + "_future_totalized.csv"
             self.csvOutFutureHourlyFilename = self.planHeatDMM.data.outputSaveFile + "_future_hourly.csv"
+            self.csvOutFutureCumulativeHourlyFilename = self.planheatDMM.data.outputSaveFile + '_future_cumulative.csv'
             self.threadOptionsLog           = self.planHeatDMM.data.outputSaveFile + "_options.txt" 
             
             self.log = self.planHeatDMM.resources.log
@@ -444,10 +447,22 @@ class Worker(QThread):
            
             self.sendMessage("INFO","Data Calculate Processing Start")
             
+            boolFirstBuildingBaseline = 0
+            boolFirstBuildingFuture = 0
+            dataCumulativeBaselineDict = {}
+            dataCumulativeFutureDict = {}
+
             # Process Data     
             for i, row in enumerate(data):
                 if self.planHeatDMM.data.processContinue == True:
                     building = Building(self.log,self.projectName,self.areaName,self.country_id,row)
+                    CumulativeBaseline = method_object.CalculateBaselineCumulativeConsumptionDemand(boolFirstBuildingBaseline, building, method_object, dataCumulativeBaselineDict)
+                    dataCumulativeBaseline = CumulativeBaseline[0]
+                    boolFirstBuildingBaseline = CumulativeBaseline[1]
+                    if self.boolRetrofittedScenarios:
+                        CumulativeFuture = method_object.CalculateFutureCumulativeConsumptionDemand(boolFirstBuildingFuture, building, method_object, dataCumulativeFutureDict)
+                        dataCumulativeFuture = CumulativeFuture[0]
+                        boolFirstBuildingFuture = CumulativeFuture[1]
                     self.message_update.emit("Processing data calculation - Building {}/{}".format(i+1,len(data)),self.planHeatDMM)
                     self.assignBuildingShapeGeometryAndRecord(self.inputShpFile,building)
                     self.progress_update.emit(i+1,self.planHeatDMM)
@@ -545,6 +560,7 @@ class Worker(QThread):
             if self.planHeatDMM.data.processContinue == True: 
                 self.sendMessage("INFO", "Saving Output Baseline Qgis files")    
                 self.outputBaselineSHPFile.saveQgisFiles()
+                pd.DataFrame(dataCumulativeBaseline).to_csv(self.csvBaselineCumulativeHourlyFilename, sep=';')
                 self.sendMessage("INFO", "Saving Output Baseline Qgis files Ok")    
             else:
                 self.sendMessage("INFO", "Process Cancel Request By User - Writing Qgis files")    
@@ -558,6 +574,7 @@ class Worker(QThread):
                 if self.planHeatDMM.data.processContinue == True:
                     self.sendMessage("INFO", "Populate Future Output Shape file")
                     self.outputFutureSHPFile.populateAll(building_list)
+                    pd.DataFrame(dataCumulativeFuture).to_csv(self.csvFutureCumulativeHourlyFilename, sep=';')
                     self.sendMessage("INFO", "Populate Future Output Shape file Ok")
                 else:
                     self.sendMessage("INFO", "Process Cancel Request By User - populate Qgis Files")
