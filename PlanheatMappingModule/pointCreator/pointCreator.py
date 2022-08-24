@@ -12,6 +12,7 @@ from qgis.gui import QgsMapToolEmitPoint
 from PyQt5.QtWidgets import QFileDialog,QMessageBox
 from .dialog_popup import DialogPopup
 from .utils import DataTypes, IndustrialQuestion, UnconventionalQuestion, FuelTypes, get_sector_list, get_co2_factor, get_unconventional_list
+from .utils import WindQuestion
 from calendar import monthrange
 import os
 
@@ -141,6 +142,7 @@ def open_dialog(point_type, question_type):
     dialog.cancelButton.clicked.connect(lambda: cancel(dialog))
     dialog.typeSelect.currentIndexChanged.connect(lambda: update_type_selection(dialog, dialog.typeSelect.currentData()))
     dialog.questionSelect.currentIndexChanged.connect(lambda: update_question_selection(dialog, dialog.questionSelect.currentData()))
+    dialog.questionSelect_1.currentIndexChanged.connect(lambda: update_question_wind_selection(dialog, dialog.questionSelect_1.currentData()))
     dialog.questionSelect_2.currentIndexChanged.connect(lambda: update_question_unconventional_selection(dialog, dialog.questionSelect_2.currentData()))
     dialog.field1Select.currentIndexChanged.connect(lambda: sector_changed(dialog))
     dialog.field2Text.textChanged.connect(lambda: calculate_result(dialog))
@@ -148,6 +150,10 @@ def open_dialog(point_type, question_type):
     dialog.field4Text.textChanged.connect(lambda: calculate_result(dialog))
     dialog.field5Text.textChanged.connect(lambda: toggle_ok_button(dialog))
     dialog.resultText.textChanged.connect(lambda: toggle_ok_button(dialog))
+    dialog.questionSelect_1.currentIndexChanged.connect(lambda: calculate_result(dialog))
+    dialog.field2Text_1.textChanged.connect(lambda: calculate_result(dialog))
+    dialog.field3Text_1.textChanged.connect(lambda: calculate_result(dialog))
+    dialog.field4Text_1.textChanged.connect(lambda: calculate_result(dialog))
     dialog.field1Text_2.textChanged.connect(lambda: calculate_result_unconventional(dialog))
     dialog.field2Text_2.textChanged.connect(lambda: calculate_result_unconventional(dialog))
     dialog.field3Text_2.textChanged.connect(lambda: calculate_result_unconventional(dialog))
@@ -166,6 +172,7 @@ def open_dialog(point_type, question_type):
     set_size_policy(dialog.field5Label)
     fill_datatype_select(dialog)
     fill_question_select(dialog)
+    fill_question_wind_select(dialog)
     fill_question_unconventional_select(dialog)
     fill_fuel_select(dialog)
     fill_sector_select(dialog)
@@ -185,6 +192,10 @@ def open_dialog(point_type, question_type):
             index = dialog.questionSelect.findData(IndustrialQuestion(question_type))
             if index != -1:
                 dialog.questionSelect.setCurrentIndex(index)
+        elif point_type == 3:
+            index = dialog.questionSelect_1.findData(WindQuestion(question_type))
+            if index != -1:
+                dialog.questionSelect_1.setCurrentIndex(index)
 
     dialog.setWindowModality(Qt.ApplicationModal)
     dialog.adjustSize()
@@ -193,6 +204,10 @@ def open_dialog(point_type, question_type):
         return dialog.resultText.text(), dialog.typeSelect.currentData().value, dialog.typeSelect.currentText(), dialog.questionSelect_2.currentData(), dialog.questionSelect_2.currentText(), dialog.field1Text_2.text(), \
                dialog.field2Text_2.text(), dialog.field3Text_2.text(), dialog.field4Text_2.text(), dialog.field5Text_2.text(), \
                get_monthly_factors_as_string(dialog), get_month_fields_as_string(dialog), dialog.month_results.text()
+
+    elif dialog.typeSelect.currentData() == DataTypes.WIND:
+        return dialog.resultText.text(), dialog.typeSelect.currentData().value, dialog.typeSelect.currentText(), dialog.questionSelect_1.currentData(), dialog.questionSelect_1.currentText(), None, \
+               dialog.field2Text_1.text(), dialog.field3Text_1.text(), dialog.field4Text_1.text(), dialog.field5Text_1.text(), None, None, None
 
     return dialog.resultText.text(), dialog.typeSelect.currentData().value, dialog.typeSelect.currentText(), dialog.questionSelect.currentData().value, \
            dialog.questionSelect.currentText(), dialog.field1Select.currentData().description, \
@@ -261,6 +276,11 @@ def calculate_result(dialog):
         if is_float(dialog.resultText.text()):
             result = float(dialog.resultText.text())
             dialog.resultText.setText("{0:.4f}".format(result))
+    if selection_type == DataTypes.WIND:
+        if dialog.questionSelect_1.currentData() == WindQuestion.HORIZONTAL:
+            if is_float(dialog.field2Text.text()) and is_float(dialog.field3Text()) and is_float(dialog.filed4Text()):
+                result = float(dialog.field2Text())
+                dialog.resultText.setText("{0:.4f}".format(result))
 
 
 # calculate results per month and write them and the sum of them into the corresponding fields.
@@ -481,6 +501,7 @@ def cancel(dialog):
 def update_type_selection(dialog, selection_type):
     if selection_type == DataTypes.INDUSTRIAL.value:
         dialog.groupUnconventional.setVisible(False)
+        dialog.groupWind.setVisible(False)
         dialog.questionSelect.setVisible(True)
         dialog.groupIndustrial.setVisible(True)
         dialog.resultText.setEnabled(False)
@@ -492,6 +513,7 @@ def update_type_selection(dialog, selection_type):
         update_question_selection(dialog, IndustrialQuestion.CO2)
     elif selection_type == DataTypes.UNCONVENTIONAL.value:
         dialog.groupIndustrial.setVisible(False)
+        dialog.groupWind.setVisible(False)
         dialog.groupUnconventional.setVisible(True)
         dialog.resultText.setEnabled(False)
         dialog.typeLabel.setToolTip("<span>Creates a shapefile with unconventional sources represented as points for the following categories: subway networks, indoor car parks, data centres, supermarkets, refrigerated storage facilities, waste water treatment plants and LNG terminals. \
@@ -499,10 +521,23 @@ def update_type_selection(dialog, selection_type):
         However, the user should not mix sources of different categories in one shapefile, because after this preprocessing step, the created shapefile has to be added to the corresponding source in the Potential supply list of the Supply Mapping Module of the PLANHEAT tool. \
         This will ensure inclusion in the further PLANHEAT calculations.</span>")
         update_question_unconventional_selection(dialog, UnconventionalQuestion.SUBWAY)
+    elif selection_type == DataTypes.WIND.value:
+        dialog.groupUnconventional.setVisible(False)
+        dialog.groupIndustrial.setVisible(False)
+        dialog.groupWind.setVisible(True)
+        dialog.resultText.setEnabled(False)
+        dialog.typeLabel.setToolTip("<span>Allows manually adding wind sources to the map. \
+            The wizard enables the calculation of the electrical supply retriving the weather data from PVGIS database. \
+            After this preprocessing step, the created shapefile has to be added to the source 'Wind - Horizontal axle' in the Potential supply list of the Supply Mapping Module of the \
+            PLANHEAT tool. This will ensure inclusion in the further PLANHEAT calculations.</span>")
+        update_question_wind_selection(dialog, WindQuestion.HORIZONTAL)
     else:
         dialog.groupIndustrial.setVisible(False)
+        dialog.groupWind.setVisible(False)
         dialog.groupUnconventional.setVisible(False)
         dialog.resultText.setEnabled(True)
+
+
 
         dialog.typeLabel.setToolTip("<span>Creates a shapefile with generic excess heat/cooling sources represented as points. In this case, the user already knows the thermal supply of the source.\
                    After this preprocessing step, the created shapefile has to be added to the source 'Generic heating/cooling source' in the Potential supply list of the Supply Mapping Module of the PLANHEAT tool. This will ensure inclusion in the further PLANHEAT calculations.\
@@ -659,6 +694,41 @@ def update_question_selection(dialog, selection_type):
     fill_sector_select(dialog)
     calculate_result(dialog)
 
+def update_question_wind_selection(dialog, selection_type):
+    for i in range(1, 5):
+        getattr(dialog, "field" + str(i) + "Label_1").setVisible(True)
+    dialog.questionSelect_1.setVisible(True)
+    dialog.field1Label_1.setVisible(True)
+    dialog.field1Label_1.setToolTip("<span>Type of aerogenerator categorized by rotor axle position (vertical or horizontal).</span>")
+    dialog.field2Text_1.setVisible(True)
+    dialog.field2UnitLabel_1.setVisible(True)
+    dialog.field3Text_1.setVisible(True)
+    dialog.field3UnitLabel_1.setVisible(True)
+    dialog.field4Text_1.setVisible(True)
+    dialog.field4UnitLabel_1.setVisible(True)
+    dialog.field5Text_1.setVisible(True)
+    dialog.field5UnitLabel_1.setVisible(True)
+    if selection_type == WindQuestion.HORIZONTAL:
+        dialog.field2Label_1.setVisible(True)
+        dialog.field2Label_1.setToolTip(
+            "<span>The diameter of the rotor considering the area swept by the aerogenerator blades.</span>")
+        dialog.field2UnitLabel_1.setVisible(True)
+        dialog.field3Label_1.setVisible(True)
+        dialog.field3Text_1.setVisible(True)
+        dialog.field3UnitLabel_1.setVisible(True)
+        dialog.field3Label_1.setToolTip(
+            "<span>Heigth of the aerogenerator hub.</span>")
+        dialog.field4Label_1.setVisible(True)
+        dialog.field4Text_1.setVisible(True)
+        dialog.field4UnitLabel_1.setVisible(True)
+        dialog.field4Label_1.setToolTip(
+            "<span>Rated power of the aerogenerator.</span>")
+        dialog.field5Label_1.setVisible(True)
+        dialog.field5Text_1.setVisible(True)
+        dialog.field5UnitLabel_1.setVisible(True)
+        dialog.field5Label_1.setToolTip(
+            "<span>Roughness of the soil at the aerogenerator position. This parameter can be set equal to 0.16 for area with few obstacles of medium height (6-8m), 0.20 for area with many obstacles of medium height, or 0.3 for urban or wood areas.</span>")
+    calculate_result(dialog)
 
 def fill_datatype_select(dialog):
     dialog.typeSelect.clear()
@@ -670,6 +740,8 @@ def fill_datatype_select(dialog):
             name = "Add generic waste heat/cooling source"
         elif data_type == DataTypes.UNCONVENTIONAL:
             name = "Add unconvential residual heat/cooling source"
+        elif data_type == DataTypes.WIND:
+            name = "Add wind source"
         dialog.typeSelect.addItem(name, data_type)
 
 
@@ -685,6 +757,13 @@ def fill_question_select(dialog):
             name = "Calculation based on footprint area"
         dialog.questionSelect.addItem(name, data_type)
 
+def fill_question_wind_select(dialog):
+    dialog.questionSelect_1.clear()
+    name = ""
+    for data_type in WindQuestion:
+        if data_type == WindQuestion.HORIZONTAL:
+            name = "Horizontal axle"
+        dialog.questionSelect_1.addItem(name, data_type)
 
 def fill_question_unconventional_select(dialog):
     dialog.questionSelect_2.clear()

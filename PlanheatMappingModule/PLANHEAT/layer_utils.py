@@ -28,25 +28,56 @@ def load_file_as_layer(file_name, layer_name, group_name=None, min_val=None, max
             elif renderer and layer.geometryType() == 0 and min_val and max_val:
                 print(layer.geometryType())
                 ranges = []
-                center = round((max_val - min_val) / 2, 0)
-                range_1 = round((center - min_val) / 2, 0)
-                range_2 = round(((max_val - center) / 2) + center, 0)
-                print(min_val, range_1, center, range_2, max_val)
+                if max_val == min_val:
+                    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                    symbol.setColor(QColor("#0005ae"))
+                    myRange = QgsRendererRange(min_val - 0.001, max_val + 0.001, symbol, str(round(min_val,2)) + " - " + str(round(max_val,2)) + " (MWh/point)")
+                    ranges.append(myRange)
 
-                symbol = QgsSymbol.defaultSymbol(layer.geometryType())
-                symbol.setColor(QColor("#0005ae"))
-                myRange = QgsRendererRange(min_val - 0.001, range_1, symbol, str(round(min_val,2)) + " - " + str(range_1) + " (MWh/point)")
-                ranges.append(myRange)
+                    print("Min val: ", min_val, "Max val: ", max_val)
+                elif max_val*min_val>0:
+                    center = round((max_val + min_val) / 2, 0)
+                    range_1 = round((center + min_val) / 2, 0)
+                    range_2 = round(((max_val + center) / 2), 0)
+                
+                    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                    symbol.setColor(QColor("#0005ae"))
+                    myRange = QgsRendererRange(min_val - 0.01, range_1, symbol, str(round(min_val,2)) + " - " + str(range_1) + " (MWh/point)")
+                    ranges.append(myRange)
 
-                symbol = QgsSymbol.defaultSymbol(layer.geometryType())
-                symbol.setColor(QColor("#fda000"))
-                myRange = QgsRendererRange(range_1, range_2, symbol, str(range_1) + " - " + str(range_2) + " (MWh/point)")
-                ranges.append(myRange)
+                    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                    symbol.setColor(QColor("#fda000"))
+                    myRange = QgsRendererRange(range_1, range_2, symbol, str(range_1) + " - " + str(range_2) + " (MWh/point)")
+                    ranges.append(myRange)
 
-                symbol = QgsSymbol.defaultSymbol(layer.geometryType())
-                symbol.setColor(QColor("#ff0000"))
-                myRange = QgsRendererRange(range_2, max_val + 0.001, symbol, str(range_2) + " - " + str(round(max_val,2)) + " (MWh/point)")
-                ranges.append(myRange)
+                    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                    symbol.setColor(QColor("#ff0000"))
+                    myRange = QgsRendererRange(range_2, max_val + 0.01, symbol, str(range_2) + " - " + str(round(max_val,2)) + " (MWh/point)")
+                    ranges.append(myRange)
+
+                    print("Min val: ", min_val,"Range1: ", range_1, "Center val: ", center, "Range2: ", range_2, "Max val: ", max_val)
+
+                else:
+                    center = round((max_val - min_val) / 2, 0)
+                    range_1 = round((center - min_val) / 2, 0)
+                    range_2 = round(((max_val - center) / 2) + center, 0)
+                
+                    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                    symbol.setColor(QColor("#0005ae"))
+                    myRange = QgsRendererRange(min_val - 0.001, range_1, symbol, str(round(min_val,2)) + " - " + str(range_1) + " (MWh/point)")
+                    ranges.append(myRange)
+
+                    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                    symbol.setColor(QColor("#fda000"))
+                    myRange = QgsRendererRange(range_1, range_2, symbol, str(range_1) + " - " + str(range_2) + " (MWh/point)")
+                    ranges.append(myRange)
+
+                    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                    symbol.setColor(QColor("#ff0000"))
+                    myRange = QgsRendererRange(range_2, max_val + 0.001, symbol, str(range_2) + " - " + str(round(max_val,2)) + " (MWh/point)")
+                    ranges.append(myRange)
+
+                    print("Min val: ", min_val,"Range1: ", range_1, "Center val: ", center, "Range2: ", range_2, "Max val: ", max_val)
 
                 expression = attribute  # field name
                 renderer = QgsGraduatedSymbolRenderer(expression, ranges)
@@ -56,6 +87,7 @@ def load_file_as_layer(file_name, layer_name, group_name=None, min_val=None, max
 
     if group_name is None:
         QgsProject.instance().addMapLayer(layer)
+        print("Group_name is None")
     else:
         QgsProject.instance().addMapLayer(layer, False)
         root = QgsProject.instance().layerTreeRoot()

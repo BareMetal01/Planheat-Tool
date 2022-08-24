@@ -38,3 +38,5 @@ class AlgorithmEnum(IntEnum):
     LAKES_COLD = 23
     SHALLOW_GEOTHERMAL = 24
     DEEP_GEOTHERMAL = 25
+    PV = 26
+    WIND = 27

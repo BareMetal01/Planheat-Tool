@@ -272,12 +272,19 @@ class PlanHeat:
         # mode in ["CMMB", "CMMF", "SMM", "DMM", "CPM", "DPM"]
         if mode in ["CMMB", "CMMF", "SMM", "DMM"]:
             self.logger.info("Starting mapping module")
+            print("PlanheatIntegration")
             self.mapping_module = PlanheatIntegration(self.iface, self.dlg)
+            print("set_mapping_config")
             self.set_mapping_config()
+            print("hide")
             self.dlg.hide()
+            print("run")
             self.mapping_module.run()
+            print("onStart")
             self.mapping_module.onStart(mode=mode)
+            print("update_module_availability")
             self.update_module_availability()
+            print("end")
         elif mode in ["DPM", "CPM"]:
             self.set_planning_config()
             planning_folder = self.current_php.get_planning_directory_path()
