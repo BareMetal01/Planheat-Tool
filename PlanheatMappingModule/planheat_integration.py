@@ -351,7 +351,9 @@ class PlanheatIntegration:
         self.dockwidget = None
 
     def open_dmm(self):
+        print("dmmrun initialization")
         dmmrun = dmm.PlanHeatDMM(self.iface, self.master_dlg)
+        print("dmmrun.run()")
         dmmrun.run()
 
     def load_open_street_maps(self):

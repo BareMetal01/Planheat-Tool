@@ -78,7 +78,9 @@ def initWindowStatus(planHeatDMM):
         
         check_work_folders()
         
+        print("Log creation")
         log = Log(planHeatDMM.resources.logDateName)
+        print("log: ", log)
         if log is None:
             raise Exception("Error Creating Log file")
         else:

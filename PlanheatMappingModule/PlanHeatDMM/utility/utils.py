@@ -44,15 +44,20 @@ def check_work_folders():
     try:
         base_path = Config.PLUGIN_DIR
         log_path= base_path + os.path.sep + Config.LOG_DIR_PATH
+        print("log_path: ", log_path)
         temp_path= base_path + os.path.sep + Config.TEMP_DIR_PATH
+        print("temp_path: ", temp_path)
         
+        print(os.path.exists(log_path))
         if not os.path.exists(log_path):
             os.makedirs(log_path)
-            
+        
+        print(os.path.exists(temp_path))
         if not os.path.exists(temp_path):
             os.makedirs(temp_path)     
                
     except Exception:
+        print("Exception")
         raise   
 
 def check_LIDAR_files(path):

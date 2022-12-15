@@ -136,39 +136,48 @@ class PlanHeatDMM:
             else:
                 self.exists = True
 
+            print("PlanHeatDMMDialog")
             self.dlg = PlanHeatDMMDialog(self)
+            print("Resources")
             self.resources = Resources(self.plugin_dir)
+            print("Data")
             self.data = Data(plugin=True)
 
             # Name of project
             self.data.projectName = master_mapping_config.CURRENT_PROJECT_NAME
 
             # Redirection
+            print("Redirection")
             dmm_folder = os.path.join(master_mapping_config.CURRENT_MAPPING_DIRECTORY,
                                                     master_mapping_config.DMM_FOLDER)
             os.makedirs(dmm_folder, exist_ok=True)
             self.data.outputSaveFile = os.path.join(dmm_folder, master_mapping_config.DMM_PREFIX)
 
-
+            print("QSplashScreen")
             splash = QSplashScreen(QtGui.QPixmap(self.plugin_dir + os.path.sep + 'resources/PlanHeatPrincipal.png'), QtCore.Qt.WindowStaysOnTopHint)
             splash.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
             splash.setEnabled(False)
             splash.show()
 
             # Run the dialog event loop
+            print("Run the dialog event loop")
             initWindowStatus(self)
+            print("self.resources.loadAppResources()")
             self.resources.loadAppResources()
             initWindowbehavior(self)
 
             # Deserialize the module
+            print("DMMSerializer.deserialize")
             DMMSerializer.deserialize(self)
 
             splash.finish(self.dlg)
 
             # show the dialog
+            print("self.dlg.show()")
             self.dlg.show()
 
             # Run the dialog event loop
+            print("self.dlg.exec_()")
             result = self.dlg.exec_()
 
             self.exists = False

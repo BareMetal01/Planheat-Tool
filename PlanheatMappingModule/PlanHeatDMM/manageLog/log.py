@@ -40,8 +40,10 @@ class Log(object):
             
         self.completeFileName = self.path + self.fileName       
 
-        
+        print("Log filename defined: ", self.completeFileName)
+        print("Config.LOG_PARAMS loggingLevel: ", Config.LOG_PARAMS["loggingLevel"])
         self.logger = Logger(self.path,self.fileName,Config.LOG_PARAMS["loggingLevel"])
+        print("self.write_log()")
         self.write_log("INFO", "Log File Created SUCCESS")
         
         
