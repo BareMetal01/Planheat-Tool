@@ -10,6 +10,7 @@ __docformat__ = "restructuredtext"
 
 import logging
 import os
+# import pwd
 #from logging.config import dictConfig
 
 class Logger():
@@ -40,8 +41,13 @@ class Logger():
 
         #Create handlers and set their logging level
         print("FileHandler, logging level: ", logging_level)
-        self.filehandler = logging.FileHandler(self.fileName)
-        self.filehandler.setLevel(logging_level)
+        try:
+            #self.user = pwd.getpwuid(os.getuid())[0]
+            #os.chown(self.filehandler, self.user, -1)
+            self.filehandler = logging.FileHandler(self.fileName, mode="w")
+            self.filehandler.setLevel(logging_level)
+        except Exception as e:
+            print("Exception: ", e)
         
         #Create custom formats of the logrecord fit for both the logfile and the console
         print("Formatter")
