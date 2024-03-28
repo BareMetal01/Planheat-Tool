@@ -100,6 +100,7 @@ def node_preferences_action(node, column):
 
 def select_algoritm_node_dialog(node, new=False):
     if get_node_data(node).type == TypeEnum.SUPPLY:
+        # print('select_supply_algoritm_node_dialog')
         select_supply_algoritm_node_dialog(node, new)
     else:
         select_demand_algoritm_node_dialog(node, new)
@@ -213,6 +214,7 @@ def select_supply_algoritm_node_dialog(node, new):
         lambda: fill_attributes_select_box(dialog.param1IdFieldSelect, file=find_node_file_by_id(node.treeWidget(), dialog.param1Select.currentData()),
                                            map_selection=find_node_map_selection_by_id(node.treeWidget(), dialog.param1Select.currentData()),
                                            custom_value="calculate feature areas", shp_only=True))
+    print('fill_attributes_select_box')
 
     dialog.algorithmSelect.clear()
     for key, value in algorithms.items():
@@ -463,6 +465,20 @@ def update_supply_algorithm_selection(dialog, algorithm, node):
         dialog.param4Group.setVisible(False)
         dialog.param6InputText.setText("75")
         dialog.param6Label.setToolTip(get_tooltip(algorithm.algorithm_id, 6))
+    if algorithm.algorithm_id == AlgorithmEnum.PV:
+        dialog.idField1Label.setVisible(True)
+        dialog.param1Label.setText("Map of the available area:")
+        dialog.param2Label.setText("Technical suitability:")
+        dialog.param2InputText.setVisible(True)
+        # dialog.param2InputText.setText("40")
+        dialog.param2UnitLabel.setVisible(True)
+        dialog.param2UnitLabel.setText("%")
+        dialog.param2Select.setVisible(False)
+        dialog.param3Label.setText("Solar radiation data:")
+        dialog.param5Label.setText("Spatial constraints:")
+        dialog.param4Group.setVisible(False)
+        dialog.param6InputText.setText("20")
+        dialog.param6Label.setToolTip(get_tooltip(algorithm.algorithm_id, 6))
     if algorithm.algorithm_id == AlgorithmEnum.BIO_FORESTERY:
         dialog.param1Label.setText("Map of the forest areas:")
         dialog.idField1Label.setVisible(True)
@@ -624,6 +640,19 @@ def update_supply_algorithm_selection(dialog, algorithm, node):
         dialog.param1Label.setText("Result map:")
         dialog.param2Label.setText("Spatial constraints:")
         dialog.bufferGroup.setVisible(True)
+    if algorithm.algorithm_id == AlgorithmEnum.WIND:
+        dialog.idField1Label.setVisible(True)
+        dialog.param1Label.setText("Aerogenerator data:")
+        dialog.param2Group.setVisible(False)
+        dialog.param3Group.setVisible(False)
+        # dialog.param4Group.setVisible(False)
+        dialog.param4Select.setVisible(False)
+        dialog.param4InputText.setVisible(True)
+        dialog.param4Label.setText("Search radius:")
+        dialog.param4UnitLabel.setVisible(True)
+        dialog.param4UnitLabel.setText("km")
+        dialog.param5Label.setText("Spatial constraints:")
+        dialog.param6Group.setVisible(False)
 
 
 def refresh_straw_yield(dialog, node, algorithm):
@@ -686,7 +715,9 @@ def calculate_algorithm_node_action(node, dialog=None):
             set_progress(progress)
             old_state = node.checkState(0)
             node.setCheckState(0, Qt.Checked)
+            print('algorithm started: node ', node, 'algorithm id ', algorithm_id)
             run_algorithm_for_node(node, algorithm_id)
+            print('algorithm ended')
             node.setCheckState(0, old_state)
             progress.setValue(2)
 
@@ -1372,6 +1403,7 @@ def find_node_map_selection_by_id(tree, node_id):
             if get_node_data(node).map_selection:
                 return get_node_data(node).map_selection
         iterator += 1
+    # print('find_node_map_selection_by_id')
     return None
 
 def check_planner_file(planner_file):

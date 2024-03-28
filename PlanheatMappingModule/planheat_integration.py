@@ -299,11 +299,13 @@ class PlanheatIntegration:
         base_path = master_mapping_config.CURRENT_MAPPING_DIRECTORY
         self.dlg.startButton.setEnabled(False)
         self.dlg.returnButton.setEnabled(False)
+        print(mode)
         if mode == master_mapping_config.CMM_BASELINE_FOLDER:
             self.open_cmm_current_demand(base_path)
         elif mode == master_mapping_config.CMM_FUTURE_FOLDER:
             self.open_cmm_future_demand(base_path)
         elif mode == master_mapping_config.DMM_FOLDER:
+            print(master_mapping_config.DMM_FOLDER)
             self.open_dmm()
         elif mode == master_mapping_config.SMM_FOLDER:
             self.open_cmm_supply(base_path)
@@ -349,7 +351,9 @@ class PlanheatIntegration:
         self.dockwidget = None
 
     def open_dmm(self):
+        print("dmmrun initialization")
         dmmrun = dmm.PlanHeatDMM(self.iface, self.master_dlg)
+        print("dmmrun.run()")
         dmmrun.run()
 
     def load_open_street_maps(self):

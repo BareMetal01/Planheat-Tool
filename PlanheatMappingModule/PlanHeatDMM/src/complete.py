@@ -851,15 +851,16 @@ class Complete():
         if boolFirstBuilding == 0:
             for t in range(0,len(building.hourlyBaselineDemandList)):
                 if t == 0:
-                    dataCumulativeDict['ProjectID'] = [building.hourlyBaselineDemandList[t].ProjectID]
+                    # self.__log.write_log("INFO", "Start CalculateBaselineCumulativeConsumptionDemand and try to access the .ProjectID field")
+                    dataCumulativeDict['ProjectID'] = [building.hourlyBaselineDemandList[t].projectID]
                     dataCumulativeDict['DayOfYear'] = [building.hourlyBaselineDemandList[t].dayOfYear]
                     dataCumulativeDict['HourOfDay'] = [building.hourlyBaselineDemandList[t].hourOfDay]
                     dataCumulativeDict['Season'] = [building.hourlyBaselineDemandList[t].season]
-                    dataCumulativeDict['Haeting'] = [building.hourlyBaselineDemandList[t].heating]
+                    dataCumulativeDict['Heating'] = [building.hourlyBaselineDemandList[t].heating]
                     dataCumulativeDict['Cooling'] = [building.hourlyBaselineDemandList[t].cooling]
                     dataCumulativeDict['DHW'] = [building.hourlyBaselineDemandList[t].DHW]
                 else:
-                    dataCumulativeDict['ProjectID'].append(building.hourlyBaselineDemandList[t].ProjectID)
+                    dataCumulativeDict['ProjectID'].append(building.hourlyBaselineDemandList[t].projectID)
                     dataCumulativeDict['DayOfYear'].append(building.hourlyBaselineDemandList[t].dayOfYear)
                     dataCumulativeDict['HourOfDay'].append(building.hourlyBaselineDemandList[t].hourOfDay)
                     dataCumulativeDict['Season'].append(building.hourlyBaselineDemandList[t].season)
@@ -880,15 +881,15 @@ class Complete():
         if boolFirstBuilding == 0:
             for t in range(0,len(building.hourlyBaselineDemandList)):
                 if t == 0:
-                    dataCumulativeDict['ProjectID'] = [building.hourlyFutureDemandList[t].ProjectID]
+                    dataCumulativeDict['ProjectID'] = [building.hourlyFutureDemandList[t].projectID]
                     dataCumulativeDict['DayOfYear'] = [building.hourlyFutureDemandList[t].dayOfYear]
                     dataCumulativeDict['HourOfDay'] = [building.hourlyFutureDemandList[t].hourOfDay]
                     dataCumulativeDict['Season'] = [building.hourlyFutureDemandList[t].season]
-                    dataCumulativeDict['Haeting'] = [building.hourlyFutureDemandList[t].heating]
+                    dataCumulativeDict['Heating'] = [building.hourlyFutureDemandList[t].heating]
                     dataCumulativeDict['Cooling'] = [building.hourlyFutureDemandList[t].cooling]
                     dataCumulativeDict['DHW'] = [building.hourlyFutureDemandList[t].DHW]
                 else:
-                    dataCumulativeDict['ProjectID'].append(building.hourlyFutureDemandList[t].ProjectID)
+                    dataCumulativeDict['ProjectID'].append(building.hourlyFutureDemandList[t].projectID)
                     dataCumulativeDict['DayOfYear'].append(building.hourlyFutureDemandList[t].dayOfYear)
                     dataCumulativeDict['HourOfDay'].append(building.hourlyFutureDemandList[t].hourOfDay)
                     dataCumulativeDict['Season'].append(building.hourlyFutureDemandList[t].season)

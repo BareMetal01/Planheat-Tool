@@ -146,7 +146,9 @@ class Worker(QThread):
     def run(self):
         try:
             
+            # print("START RUN")
             self.log.write_log("INFO","Run Thread")
+            # print("RUN")
             
             # Delete temporary files
             # Delete temp files

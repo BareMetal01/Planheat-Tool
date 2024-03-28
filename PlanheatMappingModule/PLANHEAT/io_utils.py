@@ -9,7 +9,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMessageBox
 from osgeo import gdal, ogr, osr
 from osgeo.gdalnumeric import BandWriteArray
-from qgis.core import QgsVectorLayer, QgsField, QgsVectorFileWriter
+from qgis.core import QgsVectorLayer, QgsField, QgsVectorFileWriter, QgsRasterLayer, QgsProject
 
 from .cache_utils import put_raster_in_cache, get_raster_from_cache, read_as_array
 from .database_utils import get_tree_by_id, get_node_description_by_id
@@ -54,33 +54,45 @@ def get_parent_node_description(node):
 
 
 def create_file_and_layer(algorithm_description, group_name, node, result, result_table, like_raster=None, value_color=None, load_layer=True, save_result=True):
+    print("result.shape[0]: ", result.shape[0], "result.shape[1]: ", result.shape[1])
     if result.shape[0] > 0 and result.shape[1] > 0:
+        print("True condition create_file_and_layer")
         node_data = get_node_data(node)
         tree = get_tree_by_id(node_data.tree_id)
         params = get_node_data(node).parameters
         p_string = ""
         if params and 6 in params:
             p_string = "_e" + params[6].value
+            print("p_string: ", p_string)
         file_name = get_temp_folder_name() + "\\" + get_parent_node_description(node) + node_data.description + "-" + algorithm_description + "_b" + str(
             node_data.buffer) + p_string + "-" + str(round(time.time() * 1000))[-6:] + ".tif"
+        print("file_name: ", file_name)
         if like_raster is None:
+            print("Rasterize base map")
             like_raster = rasterize_base_map(tree)
         if node_data.main_node_id:
+            print("Main node data: ", node_data.main_node_id)
             class_name = get_node_description_by_id(node_data.main_node_id)
         else:
             class_name = get_node_description_by_id(node_data.node_id)
+        print("Class name: ", class_name)
         if save_result:
+            print("Save result: ", save_result)
             save_array_in_results_table(result_table, result, like_raster, node_data.description, class_name, "Yes" if node.checkState(0) == Qt.Checked else "No")
+        print("Result table: ", result_table)
         save_array_as_tif(file_name, result, like_raster)
         min_val = round(np.nanpercentile(result[np.nonzero(result)], 2), 6)
         max_val = round(np.nanpercentile(result[np.nonzero(result)], 98), 6)
         mean_val = np.round(np.nanmean(result[np.nonzero(result)]), 6)
+        print("min_val = ", min_val, "max_val = ", max_val, "mean_val = ", mean_val)
         if load_layer and node.checkState(0) == Qt.Checked:
             load_file_as_layer(file_name, get_parent_node_description(node) + node_data.description + " result", group_name, min_val=min_val, max_val=max_val, mean_val=mean_val,
                                value_color=value_color,
                                area=float(tree.resolution) * float(tree.resolution))
         if result[np.nonzero(result)].size > 0:
             return np.round(np.nanmin(result[np.nonzero(result)]), 2), np.round(np.nanmax(result[np.nonzero(result)]), 2)
+    else:
+        print("False condition create_file_and_layer")
 
 
 def get_base_raster(node):
@@ -90,7 +102,9 @@ def get_base_raster(node):
 def save_array_as_tif(output_path_name, array_to_save, like_raster):
     driver = gdal.GetDriverByName("GTiff")
     shape = array_to_save.shape
+    print("array_to_save.shape: ", shape)
     if array_to_save.shape.__len__() == 1:
+        print("array_to_save.shape.__len__() == 1")
         shape1 = 1
     else:
         shape1 = shape[1]
@@ -98,13 +112,24 @@ def save_array_as_tif(output_path_name, array_to_save, like_raster):
     raster_srs = osr.SpatialReference()
     raster_srs.ImportFromWkt(like_raster.GetProjectionRef())
     ds_out.SetProjection(raster_srs.ExportToWkt())
+    # print("raster_srs: ", raster_srs, "ds_out: ", ds_out)
 
     gt = like_raster.GetGeoTransform()
+    print("gt: ", gt)
 
     ds_out.SetGeoTransform((gt[0], gt[1], 0.0, gt[3], 0.0, gt[5]))
-    band_out = ds_out.GetRasterBand(1)
-    band_out.SetNoDataValue(np.NaN)
-    BandWriteArray(band_out, array_to_save.astype("float32"))
+    # band_out = ds_out.GetRasterBand(1)
+    # band_out.SetNoDataValue(np.NaN)
+    # print("band_out: ", band_out)
+    # BandWriteArray(band_out, array_to_save.astype("float32"))
+    if "Wind" not in output_path_name:
+        print("Wind not in ouput file name")
+        band_out = ds_out.GetRasterBand(1)
+        band_out.SetNoDataValue(np.NaN)
+        print("band_out: ", band_out)
+        BandWriteArray(band_out, array_to_save.astype("float32"))
+    else:
+        ds_out.GetRasterBand(1).WriteArray(array_to_save.astype("float32"))
     ds_out = None
     band_out = None
     del driver, ds_out, band_out
@@ -114,6 +139,8 @@ def save_array_in_results_table(result_table, input_array, like_raster, descript
     global selection
     if selection is None:
         selection, file = get_selection()
+        print("Selection: ", selection, "File: ", file)
+    print("Selection: ", selection)
     values = []
     if selection:
         shape_dataset = rasterize_shape_dataset(selection, like_raster, attribute='ID_GEN')
@@ -122,6 +149,7 @@ def save_array_in_results_table(result_table, input_array, like_raster, descript
     else:
         base_array = read_as_array(like_raster)
         values = fill_values(base_array, input_array)
+    print("Values: ", values)
     line = [class_name, description, selected] + values
     result_table.append(line)
 
@@ -133,6 +161,7 @@ def fill_values(zone_array, value_array):
     # sum of values per id in id_list where input_array[base_array == i] vectorized
     value_array_nonan = np.where(np.isnan(value_array), 0, value_array)
     bincount = np.round(np.bincount(zone_array.astype(int).ravel(), value_array_nonan.ravel()), 2)
+    print("Bicount: ", bincount)
     values = bincount[id_list[:len(bincount)]]
     # assert (np.alltrue(np.isclose(values.tolist(), values2)))
     return values.tolist()
@@ -187,8 +216,12 @@ def open_file_as_raster(input_file, like_raster, attribute=None, add=False, buff
         return raster
     if input_file.endswith(".shp") or input_file.endswith(".gpkg") or input_file.endswith(".json"):
         # input is Vector
+        print("Input is Vector")
         raster = rasterize_shape(input_file, attribute=attribute, like_raster=like_raster, add=add, buffer_extent=buffer_extent, save_shp=save_shp)
         put_raster_in_cache(input_file, attribute, add, raster)
+        print(raster)
+        # raster_layer = QgsRasterLayer(raster, "Raster layer")
+        # QgsProject.instance().addMapLayer(raster_layer)
         return raster
     elif input_file.endswith(".tif") or input_file.endswith(".asc"):
         raster = gdal.Open(input_file)

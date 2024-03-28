@@ -72,6 +72,7 @@ class DB():
             
             if self.__db is None:
                 self.__dbfile = Config.PLUGIN_DIR + os.path.sep +  Config.DB_PARAMS['path'] + os.path.sep + Config.DB_PARAMS['databaseName']
+                print('The DB path is:' + str(self.__dbfile))
                 if os.path.isfile(self.__dbfile):
                     
                     #self.dbfile = sqlite3.connect(Config.PLUGIN_DIR +  Config.DB_PARAMS['path'] + Config.DB_PARAMS['databaseName'])#Connect to DatabaseFile

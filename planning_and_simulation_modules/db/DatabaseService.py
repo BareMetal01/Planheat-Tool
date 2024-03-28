@@ -4,7 +4,8 @@ from .adapters.SourceAdapterDB import SourceAdapterDB
 from .adapters.PollutantAdapterDB import PollutantAdapterDB
 
 class DatabaseService:
-    URL = "https://planheat.artelys.com"
+    #URL = "https://planheat.artelys.com"
+    URL = "http://localhost:5000"
     resources_emission_factor = "resources-emission-factor"
 
     def __init__(self):

@@ -10,6 +10,7 @@ class DataTypes(IntEnum):
     INDUSTRIAL = 0
     GENERIC = 1
     UNCONVENTIONAL = 2
+    WIND = 3
 
 
 class IndustrialQuestion(IntEnum):
@@ -17,6 +18,8 @@ class IndustrialQuestion(IntEnum):
     CONSUMPTION = 1
     FLOOR_SURFACE = 2
 
+class WindQuestion(IntEnum):
+    HORIZONTAL = 0
 
 class UnconventionalQuestion(IntEnum):
     SUBWAY = 1

@@ -1,13 +1,14 @@
 import csv
 import time
 import math
+import requests
 
 import numpy as np
 from PyQt5.QtCore import QEventLoop
 from PyQt5.QtWidgets import QMessageBox, QApplication
 from PyQt5.QtGui import QColor
-from qgis.core import QgsMessageLog
-from osgeo import ogr
+from qgis.core import QgsMessageLog, QgsProject, QgsVectorLayer, QgsRasterLayer
+from osgeo import ogr, osr
 from .algorithms import dasymap_calculator, weighted_distribution_calculator
 from .cache_utils import read_as_array, clear_raster_cache, get_country, set_country
 from .database_utils import get_algorithms, get_tree_by_id, get_node_file_by_id, get_node_map_selection_by_id, get_node_attribute_by_id, get_node_by_id
@@ -69,6 +70,8 @@ def run_algorithm(node, algorithm, group_name=None, original_call=True, only_che
             return _calculate_spread(node, group_name, original_call)
         if algorithm_id == AlgorithmEnum.SOLAR:
             return _calculate_solar(node, group_name, original_call)
+        if algorithm_id == AlgorithmEnum.PV:
+            return _calculate_PV(node, group_name, original_call)
         if algorithm_id == AlgorithmEnum.PROVIDED:
             return _calculate_provided(node, group_name, original_call)
         if algorithm_id == AlgorithmEnum.BIO_FORESTERY:
@@ -93,6 +96,8 @@ def run_algorithm(node, algorithm, group_name=None, original_call=True, only_che
             return _calculate_from_shallow_geothermal(node, group_name, original_call)
         if algorithm_id == AlgorithmEnum.DEEP_GEOTHERMAL:
             return _calculate_provided(node, group_name, original_call)
+        if algorithm_id == AlgorithmEnum.WIND:
+            return _calculate_wind(node, group_name, original_call)
     except TypeError as e:
         QMessageBox.critical(None, "Error", "Node " + node.text(0) + " gives an error. \nPlease check that you filled the fields correctly. \n\nThe first field is mandatory.")
         print(e)
@@ -205,6 +210,7 @@ def _do_dasymap(tree, parameters):
 
 
 def run_algorithm_for_node(node, algorithm_id):
+    print("Run algorithm for node")
     clear_all_caches()
     tree = get_tree_by_id(get_node_data(node).tree_id)
     get_feature_list(tree.file, tree.attribute_name)
@@ -410,7 +416,11 @@ def _get_buffer_mask_for_tree_data(node_data):
     buffer_size = tree.buffer_size
     if node_data.buffer is not None:
         buffer_size = int(node_data.buffer)
+    # print("Buffer size = ", buffer_size)
     buffer_shape, buffer_extent = buffer(tree.file, buffer_size * 1000)
+    # print("Buffer shape", buffer_shape)
+    # buffer_layer = QgsVectorLayer(buffer_shape, "Buffer area")
+    # QgsProject.instance().addMapLayer(buffer_layer)
     buffer_mask = read_as_array(rasterize_base_map(tree, buffer_shape))
     buffer_mask[buffer_mask > 0] = 1
     buffer_mask[buffer_mask < 0] = 0
@@ -458,6 +468,345 @@ def _calculate_solar(node, group_name, original_call):
         create_file_and_layer("", group_name, node, result, result_table, buffer_raster)
     return result
 
+def _calculate_PV(node, group_name, original_call):
+    get_node_data(node).buffer = 0
+    parameters = get_node_data(node).parameters
+    base_raster = get_base_raster(node)
+    parameters[1].id_field = "calculate feature areas"
+    set_progress_if_zero()
+    buffer_mask, buffer_file, buffer_extent = _get_buffer_mask_tree_file(node)
+    tree = get_tree_by_id(get_node_data(node).tree_id)
+    buffer_raster = rasterize_base_map(tree, buffer_file)
+    source_combined = get_combined_source_map(buffer_raster, buffer_file, buffer_raster, node, parameters)
+    technical_suitability_factor = float(parameters[2].value) / 100
+    pvgis_dataset = open_file_as_raster(get_node_input_file_by_id(parameters[3].value, buffer_raster, attribute=get_node_attribute_by_id(parameters[3].value)))
+    efficiency_factor = float(parameters[6].value) / 100
+
+    pvgis_array = read_as_array(pvgis_dataset)
+    pvgis_array[pvgis_array <= -9999] = np.NaN
+    result = source_combined * technical_suitability_factor * efficiency_factor * pvgis_array * buffer_mask
+
+    result = result * get_spatial_constraints(buffer_raster, parameters, 5)
+
+    result[result <= -9999] = np.NaN
+    if original_call:
+        create_file_and_layer("", group_name, node, result, result_table, buffer_raster)
+    return result
+
+def PVGIS_url_gen(lat, lon, startyear, endyear, tilt, azimuth):
+    # url_PVGIS = 'http://re.jrc.ec.europa.eu/pvgis5/seriescalc.php?'
+    # url_PVGIS = url_PVGIS + "lat=" + str(lat)
+    # url_PVGIS = url_PVGIS + "&lon=" + str(lon)
+    # url_PVGIS = url_PVGIS + "&startyear=" + str(startyear)
+    # url_PVGIS = url_PVGIS + "&endyear=" + str(endyear)
+    # url_PVGIS = url_PVGIS + "&angle=" + str(tilt)
+    # url_PVGIS = url_PVGIS + "&aspect=" + str(azimuth)
+
+    period = 'PVGIS-SARAH2: 2005 - 2020'
+    url_PVGIS = 'http://re.jrc.ec.europa.eu/pvgis5/tmy.php?'
+    url_PVGIS = url_PVGIS + "lat=" + str(lat)
+    url_PVGIS = url_PVGIS + "&lon=" + str(lon)
+    url_PVGIS = url_PVGIS + "&period=" + str(period)
+
+    return url_PVGIS
+
+def download_data_from_PVGIS(url_PVGIS):
+
+    r = requests.get(url_PVGIS)
+    if r.status_code == 200:
+        r = requests.get(url_PVGIS)
+        data = r.text.split("\r\n")
+        # header_row = 9
+        header_row = 17
+        W = []
+
+        for i in range(8760):
+            # W.append(float(data[header_row+i].split(",")[4]))
+            W.append(float(data[header_row+i].split(",")[7]))
+
+    else:
+        print("Error connectiong: ", url_PVGIS, "Status code: ", r.status_code)
+        print("Wind speed at 10m height from the soil could not be retrieved.")
+
+    return W
+        
+def condition(value, setpoint):
+    return value > setpoint
+
+def _calculate_wind(node, group_name, original_call):
+    node_data = get_node_data(node)
+    parameters = get_node_data(node).parameters
+    # print(parameters)
+    # print("Node tree id: ", get_tree_by_id(get_node_data(node).tree_id))
+    base_raster = get_base_raster(node)
+    buffer_mask, buffer_file, buffer_extent = _get_buffer_mask_tree_file(node)
+    # print("Buffer rusterizing started")
+    buffer_raster = rasterize_base_map(get_tree_by_id(get_node_data(node).tree_id), buffer_file)
+    
+    # print("get_node_input_file_by_id")
+    provided_map_file = get_node_input_file_by_id(parameters[1].value)
+    # print("Parameters[1].value: ", parameters[1].value)
+    # print("get_node_input_file_by_id", provided_map_file)
+
+    ## Power factor curves
+    w_660 = np.array([3.5,4,4.5,5,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20,20.5]) # Turbine with nominal power 660kW
+    w_660 = w_660.transpose()
+    Cp_660 = np.array([0,0.07,0.25,0.33,0.40,0.38,0.35,0.33,0.3,0.27,0.25,0.22,0.2,0.18,0.17,0.15,0.14,0.13,0.12,0.11,0.1,0.09,0.08,0.078,0.072])
+    Cp_660 = Cp_660.transpose()
+
+    w_850 = np.array([2.5,3,3.5,4,4.5,5,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20,20.5]) # Turbine with nominal power 850kW
+    w_850 = w_850.transpose()
+    Cp_850 = np.array([0,0.15,0.29,0.33,0.39,0.4,0.4,0.37,0.34,0.32,0.29,0.26,0.23,0.21,0.19,0.17,0.16,0.14,0.13,0.12,0.11,0.10,0.092,0.085,0.079,0.073,0.068])
+    Cp_850 = Cp_850.transpose()
+
+    w_1500 = np.array([2.5,3,3.5,4,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,17,17.5,18,18.5,19,19.5,20,20.5]) # Turbine with nominal power 1500kW
+    w_1500 = w_1500.transpose()
+    Cp_1500 = np.array([0,0.2,0.34,0.37,0.39,0.35,0.31,0.28,0.25,0.22,0.2,0.18,0.16,0.14,0.13,0.12,0.1,0.09,0.084,0.077,0.071,0.066,0.061,0.057])
+    Cp_1500 = Cp_1500.transpose()
+
+    w_1800 = np.array([2.5,3,3.5,4,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20,20.5,21]) # Turbine with nominal power 1800kW
+    w_1800 = w_1800.transpose()
+    Cp_1800 = np.array([0,0.02,0.1,0.14,0.32,0.30,0.28,0.26,0.23,0.21,0.19,0.17,0.15,0.14,0.12,0.11,0.10,0.094,0.086,0.079,0.073,0.67,0.62,0.058,0.054,0.05])
+    Cp_1800 = Cp_1800.transpose()
+
+    w_2000 = np.array([2.5,3,3.5,4,11,12,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,20,20.5]) # Turbine with nominal power 2000kW
+    w_2000 = w_2000.transpose()
+    Cp_2000 = np.array([0,0.18,0.26,0.43,0.35,0.28,0.22,0.20,0.18,0.16,0.15,0.13,0.12,0.11,0.1,0.09,0.084,0.078,0.072,0.066,0.061,0.057,0.053])
+    Cp_2000 = Cp_2000.transpose()
+
+    w_2300 = np.array([2.5,3,4,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20,20.5,21]) # Turbine with nominal power 2300kW
+    w_2300 = w_2300.transpose()
+    Cp_2300 = np.array([0,0.14,0.32,0.41,0.40,0.36,0.33,0.3,0.27,0.24,0.22,0.2,0.18,0.16,0.15,0.13,0.12,0.11,0.1,0.094,0.087,0.08,0.075,0.069,0.064])
+    Cp_2300 = Cp_2300.transpose()
+
+    w_2500_90 = np.array([2.5,3,3.5,4,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20,20.5,21]) # Turbine with nominal power 2500kW and rotor diameter 90m
+    w_2500_90 = w_2500_90.transpose()
+    Cp_2500_90 = np.array([0,0.01,0.22,0.34,0.43,0.41,0.38,0.35,0.32,0.29,0.26,0.23,0.21,0.19,0.17,0.16,0.14,0.13,0.12,0.11,0.1,0.094,0.087,0.08,0.074,0.069])
+    Cp_2500_90 = Cp_2500_90.transpose()
+
+    w_2500_115 = np.array([2.5,3,4,11,12,13,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20,20.5,21]) # Turbine with nominal power 2500kW and rotor diameter 115m
+    w_2500_115 = w_2500_115.transpose()
+    Cp_2500_115 = np.array([0,0.23,0.36,0.29,0.23,0.18,0.14,0.13,0.12,0.11,0.1,0.09,0.08,0.073,0.067,0.062,0.057,0.053,0.049,0.046,0.042])
+    Cp_2500_115 = Cp_2500_115.transpose()
+
+    w_3000 = np.array([2.5,3,3.5,4,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20,20.5,21]) # Turbine with nominal power 3000kW
+    w_3000 = w_3000.transpose()
+    Cp_3000 = np.array([0,0.19,0.22,0.34,0.43,0.41,0.38,0.35,0.32,0.29,0.26,0.23,0.21,0.19,0.17,0.16,0.14,0.13,0.12,0.11,0.1,0.094,0.087,0.08,0.074,0.069])
+    Cp_3000 = Cp_3000.transpose()
+
+    w_3400 = np.array([2.5,3,4,11,12,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20,20.5,21]) # Turbine with nominal power 3400kW
+    w_3400 = w_3400.transpose()
+    Cp_3400 = np.array([0,0.25,0.37,0.3,0.24,0.19,0.17,0.15,0.14,0.12,0.11,0.1,0.094,0.085,0.078,0.072,0.066,0.061,0.057,0.053,0.049,0.045])
+    Cp_3400 = Cp_3400.transpose()
+
+    ## Set parameters
+    air_density = 1.225                                         # [kg/m3]
+    reference_data_height = 10                                  # [m]
+    eta_gen = 0.9                                               # [-]
+    eta_trans = 0.9                                             # [-]
+    dt = 1                                                      # [h]
+    startyear = 2015
+    endyear = 2015
+    tilt = 30                                                   
+    azimuth = 0
+
+    # Coordinates transformation setting
+    source_ref = osr.SpatialReference()
+    target_ref = osr.SpatialReference()
+    source_epsg = get_crs(provided_map_file)
+    # print("source_epsg = ", source_epsg)
+    source_ref.ImportFromEPSG(int(source_epsg))
+    print("source epsg: ", source_epsg, "source ref: ", source_ref)
+    target_ref.ImportFromEPSG(int(4326))
+    print("target_ref: ", target_ref)
+    coor_trans = osr.CoordinateTransformation(source_ref, target_ref)
+
+    ## From shape
+    # print("Ogr")                                  
+    file = ogr.Open(provided_map_file)
+    layer_0 = file.GetLayer()
+    # print("N layer features: ", len(layer_0))
+    for f in range(len(layer_0)):
+        shape_feature = layer_0.GetFeature(int(f))
+        print(shape_feature)
+        aerogenerator_heigth = float(shape_feature.GetField("FIELD3"))                 # [m]
+        print("aerogenerator_h ", aerogenerator_heigth)
+        aerogenerator_diameter = float(shape_feature.GetField("FIELD2"))               # [m]
+        print("aerogenerator_d ", aerogenerator_diameter)
+        rated_power = float(shape_feature.GetField("FIELD4"))                          # [kW]
+        print("rated_power ", rated_power)
+        aerogenerator_area = np.pi*(aerogenerator_diameter**2)/4                       # [m2]
+        # print("area ", aerogenerator_area)
+        roughness = float(shape_feature.GetField("FIELD5"))                            # [-]
+        
+
+        driver = ogr.GetDriverByName('ESRI Shapefile')
+        infile = driver.Open(provided_map_file,1)
+        layer = infile.GetLayer()
+        sr = layer.GetSpatialRef()
+        # print(sr)
+        # print(sr['PARAMETER'])
+        lon = float(shape_feature.GetField("X"))
+        lat = float(shape_feature.GetField("Y"))
+        # lat = sr.GetProjParm(osr.SRS_PP_STANDARD_PARALLEL_1)
+        # lon = sr.GetProjParm(osr.SRS_PP_CENTRAL_MERIDIAN)
+        print("lat = ", lat, "lon = ", lon)
+
+        coor_PVGIS = coor_trans.TransformPoint(lon, lat)
+
+        # print(coor_PVGIS)
+        print("lat = ", coor_PVGIS[1], "lon = ", coor_PVGIS[0])
+
+        url_PVGIS = PVGIS_url_gen(coor_PVGIS[1], coor_PVGIS[0], startyear, endyear, tilt, azimuth)
+        wind_10m = download_data_from_PVGIS(url_PVGIS)
+        # print(wind_10m)
+        
+        # print("H = ", aerogenerator_heigth, "D = ", aerogenerator_diameter, "P = ", rated_power, "R = ", roughness)
+        
+        if  rated_power < 660:
+            Cp_curve = Cp_660
+            w_curve = w_660
+        elif rated_power >= 660 and rated_power <= 850:
+            Cp_curve = Cp_660
+            w_curve = w_660
+        elif rated_power >= 850 and rated_power <= 1500:
+            Cp_curve = Cp_850
+            w_curve = w_850
+        elif rated_power >= 1500 and rated_power <= 1800:
+            Cp_curve = Cp_1500
+            w_curve = w_1500
+        elif rated_power >= 1800 and rated_power <= 2000:
+            Cp_curve = Cp_1800
+            w_curve = w_1800
+        elif rated_power >= 2000 and rated_power <= 2050:
+            Cp_curve = Cp_2000
+            w_curve = w_2000
+        elif rated_power >= 2050 and rated_power <= 2400:
+            Cp_curve = Cp_2300
+            w_curve = w_2300
+        elif rated_power >= 2400 and rated_power <= 2562.5:
+            if aerogenerator_diameter <= 90:
+                Cp_curve = Cp_2500_90
+                w_curve = w_2500_90
+            else:
+                Cp_curve = Cp_2500_115
+                w_curve = w_2500_115
+        elif rated_power == 3000:
+            Cp_curve = Cp_3000
+            w_curve = w_3000
+        elif rated_power >= 3370 and rated_power <= 3450:
+            Cp_curve = Cp_3400
+            w_curve = w_3400
+        else:
+            Cp_curve = Cp_3400
+            w_curve = w_3400
+
+        wind_speed = np.zeros(len(wind_10m))
+        const = ((aerogenerator_heigth/reference_data_height)**roughness)
+        source_v = np.zeros(len(wind_10m))
+        source = 0
+        C_p = np.zeros(len(wind_10m))
+        print("Hours: ", len(wind_10m))
+        print("Start for loop")
+        for i in range(len(wind_10m)):
+            # print("Wind speed calculation")
+            wind_speed[i] = wind_10m[i] * const
+            # print("Index evaluation")
+            index = [idx for idx, element in enumerate(w_curve) if condition(element,wind_speed[i])]
+            # print("Cp calculation")
+            if len(index) > 0:
+                # if index[0] == 0:
+                if index[0] == 0 or wind_speed[i] > 20:
+                    C_p[i] = 0
+                else:
+                    C_p[i] = ((wind_speed[i]-w_curve[index[0]-1])/(w_curve[index[0]]-w_curve[index[0]-1]))*(Cp_curve[index[0]]-Cp_curve[index[0]-1])+Cp_curve[index[0]-1]
+            else: # len(index) <= 0
+                if wind_speed[i] > w_curve[-1]:
+                    C_p[i] = 0
+                else: # w_H[counter2+i] <= w_curve[-1]
+                    # C_p[i] = Cp_curve[-1]
+                    C_p[i] = 0
+            
+            # print("Source calculations")
+            source_v[i] = (0.5*air_density*aerogenerator_area*(wind_speed[i]**3))*C_p[i]*dt*eta_gen*eta_trans/1000000 # [MWh]
+            source = source + source_v[i]
+
+        # print(wind_speed)
+        print("End for loop")
+
+        feature = layer.GetFeature(f)
+        # print("Set Energy kWh")
+        feature.SetField("M_VAL_KWH", source*1000)
+        # layer.SetFeature(feature)
+        # feature = layer.GetFeature("VALUE_MWH")
+        # print("Set Energy MWh")
+        feature.SetField("VALUE_MWH", source)
+        layer.SetFeature(feature)
+
+        infile.Destroy()
+
+    # print("Provided_map: provided_map_file: ", provided_map_file, "base raster: ", base_raster, "parameters[1]: ", parameters[1].value, "attribute: ", get_node_attribute_by_id(parameters[1].value), "buffer_extent:", buffer_file)
+    provided_map = open_file_as_raster(provided_map_file, base_raster, attribute=get_node_attribute_by_id(parameters[1].value), buffer_extent=buffer_file)
+    result = read_as_array(provided_map)
+    # print("N of elements equal to 1: ", np.equal(result, 1).sum())
+    # print(np.min(result), " ", np.max(result))
+    # print("read_as_array")
+    # print(result, np.size(result), result[0], np.size(result[0]))
+
+    result = result * buffer_mask
+    # print("Result: ", result)
+    # result = result * get_spatial_constraints(buffer_raster, parameters, 5)
+    # print("Original call: ", original_call)
+    if original_call:
+        is_shape, output_shp = extract_masked_shapefile(buffer_file,get_parent_node_description(node) + node_data.description+"_inputdata_"+str(round(time.time() * 1000))+".shp",provided_map_file, base_raster)
+        # print("Output layer visulization")
+        output_layer = QgsVectorLayer(output_shp, "Output shape")
+        QgsProject.instance().addMapLayer(output_layer)
+        # print("is_shape = ", is_shape)
+        if is_shape:
+            min_val, max_val = create_file_and_layer("", group_name, node, result, result_table, base_raster, load_layer=False)
+            # print("Min val = ", min_val)
+            # print("Max val = ", max_val)
+            # print("Mean val = ", (max_val+min_val)/2)
+            # print("node_data.description: ", node_data.description, "Group_name: ", group_name, "attribute: ", get_node_attribute_by_id(parameters[1].value))
+            load_file_as_layer(output_shp, node_data.description, group_name, min_val=min_val, max_val=max_val, attribute = get_node_attribute_by_id(parameters[1].value))
+        else:
+             create_file_and_layer("", group_name, node, result, result_table, base_raster)
+
+    return result
+
+    # if the data are provided by reaster files and the calcualtions will be developed for a spread zone
+    # parameters = get_node_data(node).parameters
+    # parameters[1].id_field = "-1"
+    # base_raster = get_base_raster(node)
+    # buffer_mask, buffer_file, buffer_extent = _get_buffer_mask_tree_file(node)
+    # tree = get_tree_by_id(get_node_data(node).tree_id)
+    # buffer_raster = rasterize_base_map(tree, buffer_file)
+    # set_progress_if_zero()
+    # source_combined = get_combined_source_map(base_raster, buffer_file, buffer_raster, node, parameters)
+    # source_combined[source_combined <= -9999] = np.NaN
+    # roughness = open_file_as_raster(get_node_input_file_by_id(parameters[2].value), base_raster, attribute=get_node_attribute_by_id(parameters[2].value))
+
+    # roughness = read_as_array(roughness)  # [-]
+
+    # air_density = 1.225                                         # [kg/m3]
+    # reference_data_height = 10                                  # [m]
+    # aerogenerator_heigth = float(parameters[2])                 # [m]
+    # aerogenerator_diameter = float(parameters[3])               # [m]
+    # aerogenerator_area = np.pi()*(aerogenerator_diameter**2)/4  # [m2]
+    # efficiency_factor = float(parameters[6].value) / 100        # [-]
+
+    # wind_speed = source_combined * ((reference_data_height/aerogenerator_heigth)**roughness)
+    # source = 1/2 * aerogenerator_area * air_density * (wind_speed ** 3)
+    # result = source * buffer_mask * efficiency_factor
+
+    # result = result * get_spatial_constraints(buffer_raster, parameters, 5)
+
+    # result[result <= -9999] = np.NaN
+    # result[result == 0] = np.NaN
+    # if original_call:
+    #     create_file_and_layer("", group_name, node, result, result_table, base_raster, value_color=QColor('#119600'))
+    # return result
 
 def spread_values_over_raster_with_same_id(base_raster, parameters, source_combined):
     print("spread values")

@@ -45,6 +45,7 @@ def set_node_icon(node):
     if node_data.icon is not None:
         node.setIcon(0, QIcon(icon_prefix + node_data.icon + icon_suffix))
     elif node_data.algorithm_id is not None:
+        # print(node_data.algorithm.description, node_data.algorithm.icon)
         node.setIcon(0, QIcon(icon_prefix + node_data.algorithm.icon + icon_suffix))
 
 def find_parent_node(tree, parent_id):

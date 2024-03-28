@@ -1,8 +1,8 @@
 
 from planheatclient import PlanHeatClient
 import requests
-URL = PlanHeatClient("https://planheat.artelys.com")
-
+# URL = PlanHeatClient("https://planheat.artelys.com")
+URL = PlanHeatClient("http://localhost:5000")
 
 def recive_country():
     try:
@@ -61,7 +61,8 @@ def RaiseConnectionError():
 
 
 def test():
-    URL = PlanHeatClient("https://planheat.artelys.com")
+    # URL = PlanHeatClient("https://planheat.artelys.com")
+    URL = PlanHeatClient("http://localhost:5000")
     d = URL.geo_query("resources-emission-factor")
     r = d.send()
     for f in r["features"]:
@@ -69,7 +70,8 @@ def test():
             print(f[k])
 
     for country in r["Country"]:
-        URL = PlanHeatClient("https://planheat.artelys.com")
+        # URL = PlanHeatClient("https://planheat.artelys.com")
+        URL = PlanHeatClient("http://localhost:5000")
         d = URL.data_query("primary-energy-factor").filter("Country", country)
         r = d.send()
         print(r)

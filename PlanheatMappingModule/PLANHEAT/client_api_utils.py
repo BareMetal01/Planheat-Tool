@@ -46,8 +46,11 @@ def get_map_by_name(name=None, extent_coord_array=None, in_crs='31370'):
         t = time.time()
         try:
             #print("used call: ")
-            print('PlanHeatClient("https://planheat.artelys.com").geo_query("' + name + '").intersect_envelope(' + str(c_envelope) + ',True)')
-            request = PlanHeatClient("https://planheat.artelys.com").geo_query(name).intersect_envelope(c_envelope, True)
+            # print('PlanHeatClient("https://planheat.artelys.com").geo_query("' + name + '").intersect_envelope(' + str(c_envelope) + ',True)')
+            # request = PlanHeatClient("https://planheat.artelys.com").geo_query(name).intersect_envelope(c_envelope, True)
+            print('PlanHeatClient("http://localhost:5000").geo_query("' + name + '").intersect_envelope(' + str(c_envelope) + ',True)')
+            request = PlanHeatClient("http://localhost:5000").geo_query(name).intersect_envelope(c_envelope, True)
+            
             #print(request.client.url + '/search/' + request.client.index, request.data)
             results = request.send()
             #print(results)
@@ -146,9 +149,13 @@ def get_crop_yield(country=None, crop_type=None):
         t = time.time()
         try:
             #print("used call: ")
+            # print(
+            #     'PlanHeatClient("https://planheat.artelys.com").data_query("' + name + '").filter("country_ID","' + country + '").filter("Fuel","' + mapping_dict[crop_type] + '")')
+            # request = PlanHeatClient("https://planheat.artelys.com").data_query(name).filter('country_ID', country).filter("Fuel", mapping_dict[crop_type])
             print(
-                'PlanHeatClient("https://planheat.artelys.com").data_query("' + name + '").filter("country_ID","' + country + '").filter("Fuel","' + mapping_dict[crop_type] + '")')
-            request = PlanHeatClient("https://planheat.artelys.com").data_query(name).filter('country_ID', country).filter("Fuel", mapping_dict[crop_type])
+                'PlanHeatClient("http://localhost:5000").data_query("' + name + '").filter("country_ID","' + country + '").filter("Fuel","' + mapping_dict[crop_type] + '")')
+            request = PlanHeatClient("http://localhost:5000").data_query(name).filter('country_ID', country).filter("Fuel", mapping_dict[crop_type])
+            
             print(request.client.url + '/search/' + request.client.index, request.data)
             results = request.send()
             #print(results)
@@ -172,13 +179,15 @@ def get_available_maps():
     """
     try:
         result = []
-        all_items = PlanHeatClient("https://planheat.artelys.com").list()
+        # all_items = PlanHeatClient("https://planheat.artelys.com").list()
+        all_items = PlanHeatClient("http://localhost:5000/").list()
         for item in all_items:
             if 'fields_' + item in call_result_cache:
                 response = call_result_cache['fields_' + item]
                 print('field api cache hit')
             else:
-                response = PlanHeatClient("https://planheat.artelys.com").describe(item)
+                # response = PlanHeatClient("https://planheat.artelys.com").describe(item)
+                response = PlanHeatClient("http://localhost:5000/").describe(item)
                 add_in_api_cache('fields_' + item, response)
             if 'geometry' in response[item]["mappings"]["Features"]["properties"] or 'data' in response[item]["mappings"]["Features"]["properties"]:
                 result.append(item)
@@ -198,7 +207,8 @@ def get_available_fields(index):
             result = call_result_cache['fields_' + index]
             print('field api cache hit')
         else:
-            result = PlanHeatClient("https://planheat.artelys.com").describe(index)
+            # result = PlanHeatClient("https://planheat.artelys.com").describe(index)
+            result = PlanHeatClient("http://localhost:5000").describe(index)
             add_in_api_cache('fields_' + index, result)
         return result[index]["mappings"]["Features"]["properties"]["properties"]["properties"].keys()
     except:
